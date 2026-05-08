@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>脚本変換ツール — JP to Fountain</title>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0e0e0f; --surface: #161618; --surface2: #1e1e21; --border: #2a2a2e;
+  --accent: #c8a96e; --accent2: #8b6f3e; --text: #e8e4dc;
+  --text-muted: #7a7570; --text-dim: #4a4742;
+  --success: #5a9e6f; --danger: #c06060;
+  --gemini: #4285f4; --claude: #c8a96e;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-serif: 'Shippori Mincho', serif;
+  --font-mono: 'DM Mono', monospace;
+  --radius: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-serif); min-height: 100vh; display: flex; flex-direction: column; }
+
+header { border-bottom: 1px solid var(--border); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.logo { display: flex; align-items: baseline; gap: 12px; }
+.logo-main { font-family: var(--font-display); font-size: 28px; letter-spacing: 0.08em; color: var(--accent); }
+.logo-sub { font-size: 12px; color: var(--text-muted); letter-spacing: 0.1em; }
+.header-credit { font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; text-align: right; line-height: 1.8; }
+.header-credit a { color: var(--accent2); text-decoration: none; }
+.header-credit a:hover { color: var(--accent); }
+
+.api-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 32px; display: flex; flex-direction: column; gap: 12px; }
+.ai-switcher { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; width: fit-content; }
+.ai-tab { padding: 7px 22px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; cursor: pointer; background: transparent; border: none; color: var(--text-muted); transition: all 0.2s; }
+.ai-tab:first-child { border-right: 1px solid var(--border); }
+.ai-tab:hover { background: var(--surface2); color: var(--text); }
+.tab-active-claude { background: rgba(200,169,110,0.15) !important; color: var(--claude) !important; }
+.tab-active-gemini { background: rgba(66,133,244,0.15) !important; color: var(--gemini) !important; }
+
+.api-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.api-label { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em; white-space: nowrap; min-width: 150px; }
+.api-input-wrap { flex: 1; min-width: 200px; position: relative; }
+.api-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 36px 8px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--text); outline: none; transition: border-color 0.2s; }
+.api-input:focus { border-color: var(--accent2); }
+.api-input::placeholder { color: var(--text-dim); }
+.toggle-vis { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 14px; }
+.api-status { font-family: var(--font-mono); font-size: 11px; padding: 4px 10px; border-radius: 20px; white-space: nowrap; background: var(--surface2); color: var(--text-dim); }
+.status-claude { background: rgba(200,169,110,0.15); color: var(--claude); border: 1px solid rgba(200,169,110,0.3); }
+.status-gemini { background: rgba(66,133,244,0.15); color: var(--gemini); border: 1px solid rgba(66,133,244,0.3); }
+.api-help { font-size: 11px; color: var(--text-dim); }
+.api-help a { color: var(--accent2); text-decoration: none; }
+.api-help a:hover { color: var(--accent); }
+
+main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; }
+.pane { display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+.pane:last-child { border-right: none; }
+.pane-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface); }
+.pane-title { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; color: var(--text-muted); }
+.pane-actions { display: flex; gap: 8px; }
+.btn-small { background: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 10px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
+.btn-small:hover { border-color: var(--accent2); color: var(--accent); }
+textarea { flex: 1; background: var(--bg); border: none; outline: none; resize: none; padding: 20px; font-family: var(--font-mono); font-size: 13px; line-height: 1.8; color: var(--text); min-height: 420px; }
+textarea::placeholder { color: var(--text-dim); }
+.output-pane { flex: 1; overflow-y: auto; padding: 20px; font-family: var(--font-mono); font-size: 13px; line-height: 1.8; min-height: 420px; white-space: pre-wrap; word-break: break-word; color: var(--text-dim); }
+.output-pane.has-content { color: var(--text); }
+
+.footer-bar { border-top: 1px solid var(--border); padding: 14px 32px; background: var(--surface); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.options-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.option-item { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.option-item select { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 8px; font-family: var(--font-mono); font-size: 11px; color: var(--text); outline: none; cursor: pointer; }
+.btn-convert { background: var(--accent); border: none; border-radius: var(--radius); padding: 10px 28px; font-family: var(--font-display); font-size: 18px; letter-spacing: 0.1em; color: var(--bg); cursor: pointer; transition: all 0.2s; }
+.btn-convert:hover { opacity: 0.85; transform: translateY(-1px); }
+.btn-convert:active { transform: translateY(0); }
+.btn-convert:disabled { background: var(--surface2); color: var(--text-dim); cursor: not-allowed; transform: none; }
+.btn-gemini { background: var(--gemini); }
+
+.s-msg { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px; border-radius: 20px; display: none; }
+.s-processing { color: var(--accent); background: rgba(200,169,110,0.1); border: 1px solid rgba(200,169,110,0.2); display: inline-block; }
+.s-processing-g { color: var(--gemini); background: rgba(66,133,244,0.1); border: 1px solid rgba(66,133,244,0.2); display: inline-block; }
+.s-done { color: var(--success); background: rgba(90,158,111,0.1); border: 1px solid rgba(90,158,111,0.2); display: inline-block; }
+.s-error { color: var(--danger); background: rgba(192,96,96,0.1); border: 1px solid rgba(192,96,96,0.2); display: inline-block; }
+
+.progress-bar { width: 100%; height: 2px; background: var(--surface2); }
+.progress-fill { height: 100%; width: 0%; transition: width 0.3s; background: var(--accent); }
+.progress-fill-g { background: var(--gemini); }
+
+@media (max-width: 680px) {
+  main { grid-template-columns: 1fr; }
+  .pane { border-right: none; border-bottom: 1px solid var(--border); }
+  header, .api-bar, .footer-bar { padding: 12px 16px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-main">FOUNTAIN CONVERTER</span>
+    <span class="logo-sub">日本語脚本 → Fountain 変換ツール</span>
+  </div>
+  <div class="header-credit">
+    Presented by <a href="https://www.cleo-inc.jp/d-club/" target="_blank">CLEO Directors' Club</a><br>
+    顧問　花堂純次
+  </div>
+</header>
+
+<div class="api-bar">
+  <div class="ai-switcher">
+    <button class="ai-tab tab-active-claude" id="tabClaude" onclick="switchAI('claude')">Claude (Anthropic)</button>
+    <button class="ai-tab" id="tabGemini" onclick="switchAI('gemini')">Gemini (Google)</button>
+  </div>
+  <div class="api-row">
+    <span class="api-label" id="apiLabel">ANTHROPIC API KEY</span>
+    <div class="api-input-wrap">
+      <input type="password" class="api-input" id="apiKey" placeholder="sk-ant-api03-..." oninput="updateStatus()">
+      <button class="toggle-vis" onclick="toggleVis()">👁</button>
+    </div>
+    <span class="api-status" id="apiStatus">未設定</span>
+    <span class="api-help">
+      <a href="https://console.anthropic.com/" target="_blank" id="apiLink">console.anthropic.com</a> で取得。ブラウザ内のみで使用。
+    </span>
+  </div>
+</div>
+
+<div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+
+<main>
+  <div class="pane">
+    <div class="pane-header">
+      <span class="pane-title">INPUT — 日本語脚本</span>
+      <div class="pane-actions">
+        <button class="btn-small" onclick="loadSample()">サンプル</button>
+        <button class="btn-small" onclick="document.getElementById('inputText').value=''">クリア</button>
+      </div>
+    </div>
+    <textarea id="inputText" placeholder="ここに日本語脚本を貼り付けてください。&#10;&#10;長編脚本も対応。自動分割処理します。&#10;&#10;例：&#10;１　事務所・内部・昼&#10;&#10;田中「もう終わりだ。」"></textarea>
+  </div>
+  <div class="pane">
+    <div class="pane-header">
+      <span class="pane-title">OUTPUT — Fountain</span>
+      <div class="pane-actions">
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim)" id="chunkInfo"></span>
+        <button class="btn-small" onclick="copyOut()">コピー</button>
+        <button class="btn-small" onclick="dlOut()">DL (.fountain)</button>
+      </div>
+    </div>
+    <div class="output-pane" id="outputPane">変換結果がここに表示されます。
+
+Fountain形式はFinal Draft、WriterDuet、
+Highland 2などで開けます。</div>
+  </div>
+</main>
+
+<div class="footer-bar">
+  <div class="options-row">
+    <label class="option-item">出力言語
+      <select id="outputLang">
+        <option value="en">英語（標準）</option>
+        <option value="ja">日本語のままFountain化</option>
+      </select>
+    </label>
+    <label class="option-item">分割サイズ
+      <select id="chunkSize">
+        <option value="3000">3000字（推奨）</option>
+        <option value="5000">5000字</option>
+        <option value="1500">1500字（高精度）</option>
+      </select>
+    </label>
+    <span class="s-msg" id="sMsg"></span>
+  </div>
+  <button class="btn-convert" id="convertBtn" onclick="startConversion()">CONVERT</button>
+</div>
+
+<script>
+let ai = 'claude';
+
+const SYS_EN = `You are an expert converting Japanese screenplays to Fountain format.
+SCENE HEADINGS: 内部→INT. 外部→EXT. 昼→DAY 夜→NIGHT 朝→MORNING 夕方→DUSK. ALL CAPS. Format: INT. LOCATION - TIME
+CHARACTER NAMES: ALL CAPS romanized (田中→TANAKA). One line before dialogue.
+PARENTHETICALS: 括弧内→(parenthetical) between character and dialogue.
+ACTION: Translate to English prose. TRANSITIONS: ○→FADE IN: 暗転→FADE OUT.
+Output ONLY valid Fountain plain text. No markdown, no explanations.`;
+
+const SYS_JA = `あなたは日本語脚本をFountain記法に変換する専門家です。日本語はそのままで構造だけFountain形式に。
+シーン柱:「１ 事務所・内部・昼」→「INT. 事務所 - 昼」(ASCII大文字)
+キャラクター名: 台詞直前に単独行、全大文字ローマ字(TANAKA等)
+台詞: キャラクター名の直後の行。括弧内ト書き: (ト書き)形式。
+Fountain純テキストのみ出力。説明文・マークダウン不要。`;
+
+function switchAI(mode) {
+  ai = mode;
+  document.getElementById('tabClaude').className = 'ai-tab' + (mode==='claude'?' tab-active-claude':'');
+  document.getElementById('tabGemini').className = 'ai-tab' + (mode==='gemini'?' tab-active-gemini':'');
+  document.getElementById('convertBtn').className = 'btn-convert' + (mode==='gemini'?' btn-gemini':'');
+  document.getElementById('prog').className = 'progress-fill' + (mode==='gemini'?' progress-fill-g':'');
+  if (mode==='claude') {
+    document.getElementById('apiLabel').textContent = 'ANTHROPIC API KEY';
+    document.getElementById('apiKey').placeholder = 'sk-ant-api03-...';
+    document.getElementById('apiLink').href = 'https://console.anthropic.com/';
+    document.getElementById('apiLink').textContent = 'console.anthropic.com';
+  } else {
+    document.getElementById('apiLabel').textContent = 'GEMINI API KEY';
+    document.getElementById('apiKey').placeholder = 'AIzaSy...';
+    document.getElementById('apiLink').href = 'https://aistudio.google.com/app/apikey';
+    document.getElementById('apiLink').textContent = 'aistudio.google.com';
+  }
+  document.getElementById('apiKey').value = '';
+  updateStatus();
+}
+
+function updateStatus() {
+  const key = document.getElementById('apiKey').value.trim();
+  const el = document.getElementById('apiStatus');
+  const ok = ai==='claude' ? (key.startsWith('sk-ant-') && key.length>20) : (key.startsWith('AIza') && key.length>20);
+  el.textContent = ok ? '設定済み' : (key ? '形式確認' : '未設定');
+  el.className = 'api-status' + (ok ? (ai==='claude'?' status-claude':' status-gemini') : '');
+}
+
+function toggleVis() {
+  const i = document.getElementById('apiKey');
+  i.type = i.type==='password'?'text':'password';
+}
+
+function chunkText(text, size) {
+  if (text.length<=size) return [text];
+  const chunks=[], lines=text.split('\n');
+  let cur='';
+  for (const l of lines) {
+    if (cur.length+l.length>size && cur.length>0) { chunks.push(cur.trim()); cur=l+'\n'; }
+    else cur+=l+'\n';
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks;
+}
+
+async function callClaude(key, text, i, n) {
+  const msg = n>1 ? `脚本の第${i+1}/${n}部分をFountain形式に：\n\n${text}` : `以下をFountain形式に変換：\n\n${text}`;
+  const sys = document.getElementById('outputLang').value==='en' ? SYS_EN : SYS_JA;
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:sys,messages:[{role:'user',content:msg}]})
+  });
+  if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||`Error ${r.status}`); }
+  const d=await r.json();
+  return d.content?.map(b=>b.type==='text'?b.text:'').join('')||'';
+}
+
+async function callGemini(key, text, i, n) {
+  const msg = n>1 ? `脚本の第${i+1}/${n}部分をFountain形式に：\n\n${text}` : `以下をFountain形式に変換：\n\n${text}`;
+  const sys = document.getElementById('outputLang').value==='en' ? SYS_EN : SYS_JA;
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      system_instruction:{parts:[{text:sys}]},
+      contents:[{role:'user',parts:[{text:msg}]}],
+      generationConfig:{maxOutputTokens:4000,temperature:0.3}
+    })
+  });
+  if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||`Error ${r.status}`); }
+  const d=await r.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text||'';
+}
+
+function setMsg(msg, cls) {
+  const el=document.getElementById('sMsg');
+  el.textContent=msg; el.className='s-msg '+cls;
+}
+
+async function startConversion() {
+  const key=document.getElementById('apiKey').value.trim();
+  const input=document.getElementById('inputText').value.trim();
+  if (!key) { setMsg('APIキーを入力してください','s-error'); return; }
+  if (!input) { setMsg('脚本を入力してください','s-error'); return; }
+
+  const btn=document.getElementById('convertBtn');
+  btn.disabled=true;
+  const out=document.getElementById('outputPane');
+  out.className='output-pane'; out.textContent='';
+  document.getElementById('prog').style.width='0%';
+
+  const size=parseInt(document.getElementById('chunkSize').value);
+  const chunks=chunkText(input,size);
+  document.getElementById('chunkInfo').textContent=chunks.length>1?`${chunks.length}分割`:'';
+
+  const results=[];
+  try {
+    for (let i=0;i<chunks.length;i++) {
+      setMsg(`変換中… ${i+1}/${chunks.length}`, ai==='claude'?'s-processing':'s-processing-g');
+      document.getElementById('prog').style.width=Math.round(i/chunks.length*90)+'%';
+      const res = ai==='claude'
+        ? await callClaude(key,chunks[i],i,chunks.length)
+        : await callGemini(key,chunks[i],i,chunks.length);
+      results.push(res);
+      out.textContent=results.join('\n\n');
+      out.className='output-pane has-content';
+    }
+    document.getElementById('prog').style.width='100%';
+    setMsg(`完了 — ${chunks.length}セクション処理`,'s-done');
+    setTimeout(()=>{ document.getElementById('prog').style.width='0%'; },2000);
+  } catch(e) {
+    setMsg('エラー: '+e.message,'s-error');
+    document.getElementById('prog').style.width='0%';
+  }
+  btn.disabled=false;
+}
+
+function copyOut() {
+  const t=document.getElementById('outputPane').textContent;
+  if (!t||t.includes('変換結果')) return;
+  navigator.clipboard.writeText(t).then(()=>setMsg('コピーしました','s-done'));
+}
+
+function dlOut() {
+  const t=document.getElementById('outputPane').textContent;
+  if (!t||t.includes('変換結果')) return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([t],{type:'text/plain'}));
+  a.download='screenplay.fountain'; a.click();
+}
+
+function loadSample() {
+  document.getElementById('inputText').value=`タイトル：追憶の海
+
+１　漁港・外部・夜明け
+
+海霧の中、古びた漁港。波の音だけが響いている。
+
+ケンジ（50代、無精髭、疲れた目）がコンテナに背を預けて煙草を吸っている。
+
+遠くから足音。マリコ（40代、黒いコート）が近づいてくる。
+
+マリコ「（息を切らせて）まだいたの。」
+
+ケンジ「どこにも行けない。」
+
+マリコ、ケンジの隣に立つ。二人は海を見る。
+
+マリコ「あの夜のことを話して。」
+
+長い沈黙。
+
+ケンジ「（静かに）俺が殺したんだ。」
+
+２　漁港・船の上・回想・夜
+
+激しい雨。ケンジとオサム（40代）が言い争っている。
+
+オサム「お前には関係ない！」
+
+ケンジ「（叫ぶ）離せ！」
+
+揉み合い。オサムが甲板から落ちる。`;
+}
+</script>
+</body>
+</html>
